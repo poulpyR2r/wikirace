@@ -1,0 +1,10 @@
+/* Styles spécifiques pour le contenu Wikipedia */
+@import url("https://fr.wikipedia.org/w/load.php?modules=skins.minerva.base.styles%7Cskins.minerva.content.styles%7Cskins.minerva.content.styles.images%7Cmediawiki.skinning.interface%7Csite.styles&only=styles&skin=minerva");
+@import url("https://fr.wikipedia.org/w/load.php?modules=mediawiki.skinning.content.parsoid%7Cext.math.styles%7Cext.cite.styles&only=styles&skin=vector");
+
+/* Réinitialiser les styles pour les titres en dehors du contenu Wiki */
+:where(h1, h2, h3, h4, h5, h6):not(.wiki-content *) {
+  border: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
