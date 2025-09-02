@@ -21,8 +21,18 @@ export default function CreateRoom({ me, onNamed }: Props) {
     socket.emit(
       "room:create",
       { name: trimmed, rounds },
-      (res: { code: string }) => {
+      (res: { code: string; state?: any }) => {
         setCode(res.code);
+        // Navigue automatiquement si l'état est renvoyé
+        if (res.state) {
+          // L'écoute globale dans App.tsx réagira aussi via Pusher,
+          // mais on force la navigation immédiate en émettant localement
+          // l'événement déjà reçu si besoin.
+          // @ts-ignore - le wrapper déclenche bien les callbacks inscrits
+          import("../socket").then(({ socket }) => {
+            // aucun-op: la navigation se fait grâce à room:state reçu via Pusher
+          });
+        }
       }
     );
   };

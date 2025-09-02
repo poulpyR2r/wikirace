@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "wikirace-server": "file:.."
+  }
+}

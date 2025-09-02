@@ -1,8 +1,9 @@
+import "dotenv/config";
 import express from "express";
-import http from "http";
-import { Server } from "socket.io";
+import compression from "compression";
 import cors from "cors";
 import sanitizeHtml from "sanitize-html";
+import Pusher from "pusher";
 import {
   createRoom,
   toPublic,
@@ -12,21 +13,34 @@ import {
   awardScores,
 } from "./room.js";
 import { getMobileHtml } from "./wiki.js";
-import type {
-  ClientToServer,
-  ServerToClient,
-  RoomState,
-  Player,
-} from "./types.js";
+import type { RoomState, Player } from "./types.js";
 
 const PORT = process.env.PORT || 4000;
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || "http://localhost:5173";
 
 const app = express();
 app.use(cors({ origin: CLIENT_ORIGIN }));
-app.use(express.json());
+app.use(compression());
+app.use(express.json({ limit: "1mb" }));
 
 const rooms = new Map<string, RoomState>();
+
+// Log pusher config (masked) to ensure env loaded
+console.log("Pusher config:", {
+  appId: process.env.PUSHER_APP_ID,
+  key: (process.env.PUSHER_KEY || "").slice(0, 6) + "***",
+  cluster: process.env.PUSHER_CLUSTER,
+});
+
+const pusher = new Pusher({
+  appId: process.env.PUSHER_APP_ID || "",
+  key: process.env.PUSHER_KEY || "",
+  secret: process.env.PUSHER_SECRET || "",
+  cluster: process.env.PUSHER_CLUSTER || "eu",
+  useTLS: true,
+  // Explicit host for EU cluster to avoid 404 misroutes if corporate proxy/DNS
+  host: process.env.PUSHER_HOST || undefined,
+});
 
 function makeCode(): string {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -35,6 +49,18 @@ function makeCode(): string {
     s += alphabet[Math.floor(Math.random() * alphabet.length)];
   if (rooms.has(s)) return makeCode();
   return s;
+}
+
+async function broadcast(code: string, event: string, payload: any) {
+  try {
+    await pusher.trigger(`room-${code}`, event, payload);
+  } catch (err) {
+    console.error("Pusher trigger failed", {
+      event,
+      code,
+      message: (err as Error)?.message,
+    });
+  }
 }
 
 app.get("/api/wiki/:title", async (req, res) => {
@@ -140,159 +166,164 @@ app.get("/api/wiki/:title", async (req, res) => {
   }
 });
 
-const server = http.createServer(app);
-const io = new Server<ClientToServer, ServerToClient>(server, {
-  cors: { origin: CLIENT_ORIGIN },
+// Create room
+app.post("/api/room/create", (req, res) => {
+  const { name, rounds, clientId } = req.body as {
+    name: string;
+    rounds: number;
+    clientId: string;
+  };
+  if (!name || !clientId || !rounds)
+    return res.status(400).json({ error: "Invalid payload" });
+  const code = makeCode();
+  const state = createRoom(code, clientId, rounds);
+  const player: Player = {
+    id: clientId,
+    name,
+    score: 0,
+    ready: false,
+    clicks: 0,
+  };
+  state.players.set(clientId, player);
+  rooms.set(code, state);
+  const publicState = toPublic(state);
+  broadcast(code, "room:state", publicState);
+  res.json({ code, state: publicState });
 });
 
-io.on("connection", (socket) => {
-  socket.on("room:create", ({ name, rounds }, cb) => {
-    const code = makeCode();
-    const state = createRoom(code, socket.id, rounds);
+// Join room
+app.post("/api/room/join", (req, res) => {
+  const { code, name, clientId } = req.body as {
+    code: string;
+    name: string;
+    clientId: string;
+  };
+  const state = rooms.get(code);
+  if (!state)
+    return res.json({ ok: false, host: false, error: "Room not found" });
+  if (!state.players.has(clientId)) {
     const player: Player = {
-      id: socket.id,
+      id: clientId,
       name,
       score: 0,
       ready: false,
       clicks: 0,
     };
-    state.players.set(socket.id, player);
-    rooms.set(code, state);
-    socket.join(code);
-    cb({ code });
-    io.to(code).emit("room:state", toPublic(state));
+    state.players.set(clientId, player);
+  }
+  broadcast(code, "room:state", toPublic(state));
+  res.json({
+    ok: true,
+    host: state.createdBy === clientId,
+    state: toPublic(state),
   });
+});
 
-  socket.on("room:join", ({ code, name }, cb) => {
-    const state = rooms.get(code);
-    if (!state) return cb({ ok: false, host: false, error: "Room not found" });
-    const exists = state.players.has(socket.id);
-    if (!exists) {
-      const player: Player = {
-        id: socket.id,
-        name,
-        score: 0,
-        ready: false,
-        clicks: 0,
-      };
-      state.players.set(socket.id, player);
+// Player ready
+app.post("/api/room/ready", async (req, res) => {
+  const { code, clientId } = req.body as { code: string; clientId: string };
+  const state = rooms.get(code);
+  if (!state) return res.status(404).json({ error: "Room not found" });
+  const player = state.players.get(clientId);
+  if (!player) return res.status(404).json({ error: "Player not found" });
+  player.ready = true;
+  await broadcast(code, "room:state", toPublic(state));
+
+  if (state.status === "lobby" || state.status === "round_over") {
+    if (allReady(state)) {
+      await startNextRound(state);
+      await broadcast(code, "room:state", toPublic(state));
+      await broadcast(code, "round:setup", {
+        targetTitle: state.targetTitle!,
+        round: state.currentRound,
+        rounds: state.rounds,
+      });
+      setTimeout(async () => {
+        state.status = "playing";
+        state.startedAt = Date.now();
+        await broadcast(code, "round:start", { startTitle: state.startTitle! });
+        await broadcast(code, "room:state", toPublic(state));
+      }, 3000);
     }
-    socket.join(code);
-    cb({
-      ok: true,
-      host: state.createdBy === socket.id,
-      state: toPublic(state),
+  }
+  res.json({ ok: true });
+});
+
+// Player navigate
+app.post("/api/player/navigate", async (req, res) => {
+  const { code, clientId, title } = req.body as {
+    code: string;
+    clientId: string;
+    title: string;
+  };
+  const state = rooms.get(code);
+  if (!state) return res.status(404).json({ error: "Room not found" });
+  const { winner } = handleNavigate(state, clientId, title);
+  if (winner) {
+    const updatedScores = awardScores(state);
+    await broadcast(code, "round:over", {
+      winnerId: winner.id,
+      winnerName: winner.name,
+      targetTitle: state.targetTitle!,
+      updatedScores,
+      winnerPath: state.paths?.get(winner.id) || [],
     });
-    io.to(code).emit("room:state", toPublic(state));
-  });
-
-  socket.on("room:ready", async () => {
-    const code = [...socket.rooms].find((r) => rooms.has(r));
-    if (!code) return;
-    const state = rooms.get(code)!;
-    const player = state.players.get(socket.id);
-    if (!player) return;
-    player.ready = true;
-    io.to(code).emit("room:state", toPublic(state));
-
-    // Auto-start next round when everyone is ready in lobby OR right after a round.
-    if (state.status === "lobby" || state.status === "round_over") {
-      if (allReady(state)) {
+    await broadcast(code, "room:state", toPublic(state));
+    if (state.currentRound >= state.rounds) {
+      state.status = "finished";
+      await broadcast(code, "room:state", toPublic(state));
+    } else {
+      setTimeout(async () => {
         await startNextRound(state);
-        io.to(code).emit("room:state", toPublic(state));
-        io.to(code).emit("round:setup", {
+        await broadcast(code, "room:state", toPublic(state));
+        await broadcast(code, "round:setup", {
           targetTitle: state.targetTitle!,
           round: state.currentRound,
           rounds: state.rounds,
         });
-        setTimeout(() => {
+        setTimeout(async () => {
           state.status = "playing";
           state.startedAt = Date.now();
-          io.to(code).emit("round:start", { startTitle: state.startTitle! });
-          io.to(code).emit("room:state", toPublic(state));
-        }, 3000);
-      }
-    }
-  });
-
-  socket.on("player:navigate", ({ title }) => {
-    const code = [...socket.rooms].find((r) => rooms.has(r));
-    if (!code) return;
-    const state = rooms.get(code)!;
-    const { winner } = handleNavigate(state, socket.id, title);
-    if (winner) {
-      const updatedScores = awardScores(state);
-      io.to(code).emit("round:over", {
-        winnerId: winner.id,
-        winnerName: winner.name,
-        targetTitle: state.targetTitle!,
-        updatedScores,
-        winnerPath: state.paths?.get(winner.id) || [],
-      });
-      io.to(code).emit("room:state", toPublic(state));
-      // If last round just ended, mark finished; otherwise auto-advance after short pause
-      if (state.currentRound >= state.rounds) {
-        state.status = "finished";
-        io.to(code).emit("room:state", toPublic(state));
-      } else {
-        setTimeout(async () => {
-          await startNextRound(state);
-          io.to(code).emit("room:state", toPublic(state));
-          io.to(code).emit("round:setup", {
-            targetTitle: state.targetTitle!,
-            round: state.currentRound,
-            rounds: state.rounds,
+          await broadcast(code, "round:start", {
+            startTitle: state.startTitle!,
           });
-          setTimeout(() => {
-            state.status = "playing";
-            state.startedAt = Date.now();
-            io.to(code).emit("round:start", { startTitle: state.startTitle! });
-            io.to(code).emit("room:state", toPublic(state));
-          }, 2000);
+          await broadcast(code, "room:state", toPublic(state));
         }, 2000);
-      }
+      }, 2000);
     }
-  });
-
-  socket.on("room:next", async () => {
-    const code = [...socket.rooms].find((r) => rooms.has(r));
-    if (!code) return;
-    const state = rooms.get(code)!;
-    if (state.createdBy !== socket.id) return;
-    // If game already finished, ignore
-    if (state.status === "finished") return;
-    // If last round already played, mark finished and broadcast
-    if (state.currentRound >= state.rounds) {
-      state.status = "finished";
-      io.to(code).emit("room:state", toPublic(state));
-      return;
-    }
-    await startNextRound(state);
-    io.to(code).emit("room:state", toPublic(state));
-    io.to(code).emit("round:setup", {
-      targetTitle: state.targetTitle!,
-      round: state.currentRound,
-      rounds: state.rounds,
-    });
-    setTimeout(() => {
-      state.status = "playing";
-      state.startedAt = Date.now();
-      io.to(code).emit("round:start", { startTitle: state.startTitle! });
-      io.to(code).emit("room:state", toPublic(state));
-    }, 3000);
-  });
-
-  socket.on("disconnect", () => {
-    for (const [code, state] of rooms) {
-      if (state.players.delete(socket.id)) {
-        io.to(code).emit("room:state", toPublic(state));
-        if (state.players.size === 0) rooms.delete(code);
-        break;
-      }
-    }
-  });
+  }
+  res.json({ ok: true });
 });
 
-server.listen(PORT, () => {
-  console.log(`Server listening on http://localhost:${PORT}`);
+// Host-advance to next round
+app.post("/api/room/next", async (req, res) => {
+  const { code, clientId } = req.body as { code: string; clientId: string };
+  const state = rooms.get(code);
+  if (!state) return res.status(404).json({ error: "Room not found" });
+  if (state.createdBy !== clientId)
+    return res.status(403).json({ error: "Only host can advance" });
+  if (state.status === "finished") return res.json({ ok: true });
+  if (state.currentRound >= state.rounds) {
+    state.status = "finished";
+    await broadcast(code, "room:state", toPublic(state));
+    return res.json({ ok: true });
+  }
+  await startNextRound(state);
+  await broadcast(code, "room:state", toPublic(state));
+  await broadcast(code, "round:setup", {
+    targetTitle: state.targetTitle!,
+    round: state.currentRound,
+    rounds: state.rounds,
+  });
+  setTimeout(async () => {
+    state.status = "playing";
+    state.startedAt = Date.now();
+    await broadcast(code, "round:start", { startTitle: state.startTitle! });
+    await broadcast(code, "room:state", toPublic(state));
+  }, 3000);
+  res.json({ ok: true });
+});
+
+app.listen(PORT, () => {
+  console.log(`HTTP server listening on http://localhost:${PORT}`);
 });

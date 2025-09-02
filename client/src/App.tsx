@@ -23,10 +23,10 @@ function AppRoutes() {
   const [toast, setToast] = useState<string>("");
   const navigate = useNavigate();
 
-  // Establish a socket connection and wire listeners
+  // Establish a pusher-backed room connection and wire listeners
   const setupSocket = () => {
     const s = connectSocket(SERVER_URL);
-    s.on("connect", () => setMe((m) => ({ ...m, id: s.id || "" })));
+    setMe((m) => ({ ...m, id: s.id || "" }));
     s.on("room:state", setRoom);
     s.on("room:error", setToast);
     return s;

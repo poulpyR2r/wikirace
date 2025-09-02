@@ -44,6 +44,8 @@ export default function WikiView({
   const containerRef = useRef<HTMLDivElement>(null);
 
   async function load(t: string) {
+    // Emit instant so le jeu réagit de suite, puis fetch le contenu
+    socket.emit("player:navigate", { title: t });
     const { html, title } = await fetchWikiHtml(t);
     // Remove only specific sections: External links, Bibliography, Notes/References
     try {
@@ -125,7 +127,7 @@ export default function WikiView({
         if (c) c.scrollTo({ top: 0, left: 0, behavior: "auto" });
       });
     }
-    socket.emit("player:navigate", { title });
+    // Déjà émis au début
   }
 
   useEffect(() => {
