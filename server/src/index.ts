@@ -16,10 +16,26 @@ import { getMobileHtml } from "./wiki.js";
 import type { RoomState, Player } from "./types.js";
 
 const PORT = process.env.PORT || 4000;
-const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || "http://localhost:5173";
+// Normalize configured client origin by removing a trailing slash
+const CLIENT_ORIGIN = (
+  process.env.CLIENT_ORIGIN || "http://localhost:5173"
+).replace(/\/$/, "");
 
 const app = express();
-app.use(cors({ origin: CLIENT_ORIGIN }));
+// Reflect request origin only if it matches our allowed origin (ignoring trailing slash)
+const corsOptions: cors.CorsOptions = {
+  origin(origin, callback) {
+    // Allow non-browser requests or same-origin (no Origin header)
+    if (!origin) return callback(null, true);
+    const normalized = origin.replace(/\/$/, "");
+    if (normalized === CLIENT_ORIGIN) {
+      return callback(null, true);
+    }
+    return callback(new Error("CORS: Origin not allowed"));
+  },
+};
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
 // app.use(compression());
 app.use(express.json({ limit: "1mb" }));
 
