@@ -1,6 +1,8 @@
 import "dotenv/config";
 import express from "express";
-// import compression from "compression";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore - local shim in types.d.ts
+import compression from "compression";
 import cors from "cors";
 import sanitizeHtml from "sanitize-html";
 import Pusher from "pusher";
@@ -38,6 +40,7 @@ app.use(cors(corsOptions));
 app.options("*", cors(corsOptions));
 // app.use(compression());
 app.use(express.json({ limit: "1mb" }));
+app.use(compression());
 
 const rooms = new Map<string, RoomState>();
 
@@ -176,6 +179,11 @@ app.get("/api/wiki/:title", async (req, res) => {
       allowedSchemes: ["http", "https", "data"],
       allowProtocolRelative: true,
     });
+    // Cache wiki payloads at the CDN for 1 hour, allow SWR for 1 minute
+    res.set(
+      "Cache-Control",
+      "public, s-maxage=3600, stale-while-revalidate=60"
+    );
     res.json({ title: canonical, html: clean });
   } catch (e) {
     res.status(500).json({ error: "Failed to fetch wiki content" });
