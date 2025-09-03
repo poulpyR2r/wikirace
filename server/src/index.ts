@@ -191,7 +191,7 @@ app.get("/api/wiki/:title", async (req, res) => {
 });
 
 // Create room
-app.post("/api/room/create", (req, res) => {
+app.post("/api/room/create", async (req, res) => {
   const { name, rounds, clientId } = req.body as {
     name: string;
     rounds: number;
@@ -216,7 +216,7 @@ app.post("/api/room/create", (req, res) => {
 });
 
 // Join room
-app.post("/api/room/join", (req, res) => {
+app.post("/api/room/join", async (req, res) => {
   const { code, name, clientId } = req.body as {
     code: string;
     name: string;
