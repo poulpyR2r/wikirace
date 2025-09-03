@@ -1,6 +1,6 @@
 import "dotenv/config";
 import express from "express";
-import compression from "compression";
+// import compression from "compression";
 import cors from "cors";
 import sanitizeHtml from "sanitize-html";
 import Pusher from "pusher";
@@ -20,7 +20,7 @@ const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || "http://localhost:5173";
 
 const app = express();
 app.use(cors({ origin: CLIENT_ORIGIN }));
-app.use(compression());
+// app.use(compression());
 app.use(express.json({ limit: "1mb" }));
 
 const rooms = new Map<string, RoomState>();
