@@ -147,12 +147,12 @@ export default function WikiView({
       });
 
       // Generate table of contents from headings
-      const headings = Array.from(
+      const tocHeadings = Array.from(
         wrapper.querySelectorAll("h1, h2, h3, h4, h5, h6")
       );
       const toc: Array<{ id: string; text: string; level: number }> = [];
 
-      headings.forEach((heading, index) => {
+      tocHeadings.forEach((heading, index) => {
         const level = parseInt(heading.tagName.substring(1));
         const text = heading.textContent?.trim() || "";
         let id = heading.getAttribute("id") || "";
