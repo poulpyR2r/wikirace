@@ -12,17 +12,14 @@ export default function Input({
   ...props
 }: InputProps) {
   const baseStyles =
-    "rounded border border-wiki-gray-300 bg-white px-3 py-2 text-base text-wiki-text outline-none transition-all";
+    "border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition-colors focus:border-blue-500 focus:ring-1 focus:ring-blue-500 placeholder:text-gray-500";
   const widthStyles = fullWidth ? "w-full" : "w-auto";
-  const focusStyles = "focus:border-wiki-blue focus:shadow";
-  const placeholderStyles = "placeholder:text-wiki-gray-500";
-
-  const combinedClassName = `${baseStyles} ${widthStyles} ${focusStyles} ${placeholderStyles} ${className}`;
+  const combinedClassName = `${baseStyles} ${widthStyles} ${className}`;
 
   return (
     <div className={fullWidth ? "w-full" : "w-auto"}>
       {label && (
-        <label className="block text-base font-medium text-wiki-text mb-2">
+        <label className="block text-sm font-medium text-gray-700 mb-1">
           {label}
         </label>
       )}

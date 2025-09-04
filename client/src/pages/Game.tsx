@@ -190,7 +190,7 @@ export default function Game({
           }}
         />
       )}
-      {showOverlay && (
+      {/* {showOverlay && (
         <div className="fixed inset-0 z-20 flex items-center justify-center bg-surface-900/40 backdrop-blur-sm p-4">
           <Card className="w-full max-w-lg !p-6">
             <div className="text-2xl font-medium text-wiki-text mb-6">
@@ -288,7 +288,7 @@ export default function Game({
             </div>
           </Card>
         </div>
-      )}
+      )} */}
     </div>
   );
 }

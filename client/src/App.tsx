@@ -10,6 +10,13 @@ import Lobby from "./pages/Lobby";
 import Game from "./pages/Game";
 import Summary from "./pages/Summary";
 import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom";
+import Rules from "./pages/Rules";
+import HowToPlay from "./pages/HowToPlay";
+import Privacy from "./pages/Privacy";
+import About from "./pages/About";
+import Disclaimer from "./pages/Disclaimer";
+import { HelmetProvider } from "react-helmet-async";
+import { useGoogleAnalytics } from "./hooks/useGoogleAnalytics";
 
 function AppRoutes() {
   const [view, setView] = useState<
@@ -22,6 +29,9 @@ function AppRoutes() {
   const [room, setRoom] = useState<PublicRoomState | null>(null);
   const [toast, setToast] = useState<string>("");
   const navigate = useNavigate();
+
+  // Initialize Google Analytics
+  useGoogleAnalytics();
 
   // Establish a pusher-backed room connection and wire listeners
   const setupSocket = () => {
@@ -144,6 +154,26 @@ function AppRoutes() {
               )
             }
           />
+          <Route
+            path="/rules"
+            element={<Rules onBackHome={handleBackHome} />}
+          />
+          <Route
+            path="/how-to-play"
+            element={<HowToPlay onBackHome={handleBackHome} />}
+          />
+          <Route
+            path="/privacy"
+            element={<Privacy onBackHome={handleBackHome} />}
+          />
+          <Route
+            path="/about"
+            element={<About onBackHome={handleBackHome} />}
+          />
+          <Route
+            path="/disclaimer"
+            element={<Disclaimer onBackHome={handleBackHome} />}
+          />
         </Routes>
       </div>
     </div>
@@ -152,8 +182,10 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AppRoutes />
-    </BrowserRouter>
+    <HelmetProvider>
+      <BrowserRouter>
+        <AppRoutes />
+      </BrowserRouter>
+    </HelmetProvider>
   );
 }

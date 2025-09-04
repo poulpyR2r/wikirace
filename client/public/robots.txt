@@ -1,0 +1,28 @@
+# Robots.txt pour WikiRace
+User-agent: *
+Allow: /
+
+# Pages importantes à indexer
+Allow: /
+Allow: /create
+Allow: /join
+Allow: /rules
+Allow: /how-to-play
+Allow: /about
+
+# Pages à ne pas indexer (sessions de jeu privées)
+Disallow: /game/*
+Disallow: /lobby/*
+Disallow: /summary/*
+
+# Fichiers techniques
+Allow: /sitemap.xml
+Allow: /favicon.ico
+Allow: /*.css
+Allow: /*.js
+
+# Sitemap
+Sitemap: https://games.wikirace.taylora.fr/sitemap.xml
+
+# Délai de crawl (respectueux)
+Crawl-delay: 1

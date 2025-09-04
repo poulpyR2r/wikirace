@@ -10,7 +10,7 @@ export default function Card({
   ...props
 }: CardProps) {
   const baseStyles =
-    "rounded border border-wiki-gray-300 bg-white px-4 py-3 hover:border-wiki-blue/50 transition-all";
+    "panel px-5 py-4 transition-all hover:shadow-lg hover:shadow-black/20";
 
   const combinedClassName = `${baseStyles} ${className}`;
 

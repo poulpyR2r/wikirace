@@ -1,0 +1,75 @@
+{
+  "name": "WikiRace - Jeu de course Wikipedia",
+  "short_name": "WikiRace",
+  "description": "Défiez vos amis dans une course multijoueur à travers les articles Wikipedia !",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0066cc",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "fr",
+  "categories": ["games", "education", "entertainment"],
+  "icons": [
+    {
+      "src": "/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/favicon-32x32.png",
+      "sizes": "32x32",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/favicon-16x16.png",
+      "sizes": "16x16",
+      "type": "image/png",
+      "purpose": "maskable any"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/homepage.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "platform": "wide"
+    },
+    {
+      "src": "/screenshots/game.png",
+      "sizes": "750x1334",
+      "type": "image/png",
+      "platform": "narrow"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Créer une partie",
+      "short_name": "Créer",
+      "description": "Créer une nouvelle partie WikiRace",
+      "url": "/create",
+      "icons": [{"src": "/favicon-32x32.png", "sizes": "32x32"}]
+    },
+    {
+      "name": "Rejoindre une partie",
+      "short_name": "Rejoindre",
+      "description": "Rejoindre une partie existante",
+      "url": "/join",
+      "icons": [{"src": "/favicon-32x32.png", "sizes": "32x32"}]
+    }
+  ]
+}
