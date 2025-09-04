@@ -48,6 +48,68 @@ export async function getRandomTitle(): Promise<string> {
   return normalizeTitle(title);
 }
 
+// Pool of popular target pages for WikiRace
+const POPULAR_TARGETS = [
+  "France",
+  "Paris",
+  "États-Unis",
+  "Allemagne",
+  "Italie",
+  "Espagne",
+  "Napoleon_Ier",
+  "Louis_XIV",
+  "Charles_de_Gaulle",
+  "Marie_Curie",
+  "Albert_Einstein",
+  "Léonard_de_Vinci",
+  "Mozart",
+  "Bach",
+  "Première_Guerre_mondiale",
+  "Seconde_Guerre_mondiale",
+  "Révolution_française",
+  "Renaissance",
+  "Moyen_Âge",
+  "Antiquité",
+  "Soleil",
+  "Lune",
+  "Terre",
+  "Mars",
+  "Jupiter",
+  "Chat",
+  "Chien",
+  "Lion",
+  "Éléphant",
+  "Aigle",
+  "Football",
+  "Tennis",
+  "Basketball",
+  "Jeux_olympiques",
+  "Cinéma",
+  "Musique",
+  "Littérature",
+  "Peinture",
+  "Sculpture",
+  "Christianisme",
+  "Islam",
+  "Bouddhisme",
+  "Judaïsme",
+  "Europe",
+  "Asie",
+  "Afrique",
+  "Amérique",
+  "Océanie",
+  "Mathématiques",
+  "Physique",
+  "Chimie",
+  "Biologie",
+  "Médecine",
+];
+
+export function getRandomTarget(): string {
+  const randomIndex = Math.floor(Math.random() * POPULAR_TARGETS.length);
+  return normalizeTitle(POPULAR_TARGETS[randomIndex]);
+}
+
 export async function getMobileHtml(
   title: string
 ): Promise<{ html: string; title: string }> {

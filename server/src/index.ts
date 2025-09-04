@@ -320,21 +320,17 @@ app.post("/api/player/navigate", async (req, res) => {
       updatedScores,
       winnerPath: state.paths?.get(winner.id) || [],
     });
-    await broadcast(code, "room:state", toPublic(state));
+
     if (state.currentRound >= state.rounds) {
       state.status = "finished";
       await persistRoom(state);
       await broadcast(code, "room:state", toPublic(state));
     } else {
-      await startNextRound(state);
+      // Just set status to round_over, don't start next round yet
+      // Next round will start when all players are ready
+      state.status = "round_over";
       await persistRoom(state);
       await broadcast(code, "room:state", toPublic(state));
-      await broadcast(code, "round:setup", {
-        targetTitle: state.targetTitle!,
-        round: state.currentRound,
-        rounds: state.rounds,
-      });
-      // Host will trigger /api/room/start after countdown
     }
   }
   res.json({ ok: true });

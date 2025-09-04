@@ -1,5 +1,5 @@
 import { RoomState, Player, PublicRoomState } from "./types.js";
-import { getRandomTitle, normalizeTitle } from "./wiki.js";
+import { getRandomTitle, getRandomTarget, normalizeTitle } from "./wiki.js";
 
 export function createRoom(
   code: string,
@@ -71,7 +71,7 @@ export async function startNextRound(state: RoomState) {
   if (!state.history) state.history = new Map();
   state.history.set(state.currentRound, state.paths);
 
-  let target = normalizeTitle("France");
+  let target = getRandomTarget();
   let start = await getRandomTitle();
   let guard = 0;
   while (normalizeTitle(start) === normalizeTitle(target) && guard++ < 10) {
