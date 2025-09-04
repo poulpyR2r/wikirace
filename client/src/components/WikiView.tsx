@@ -41,15 +41,35 @@ export default function WikiView({
 }) {
   const [title, setTitle] = useState(startTitle);
   const [html, setHtml] = useState("<p>Loading…</p>");
+  const [visitedPages, setVisitedPages] = useState<Set<string>>(new Set());
+  const [tableOfContents, setTableOfContents] = useState<
+    Array<{ id: string; text: string; level: number }>
+  >([]);
   const containerRef = useRef<HTMLDivElement>(null);
 
   async function load(t: string) {
+    // Normalize title for comparison
+    const normalizedTitle = t.replace(/_/g, " ").trim();
+
+    // Check if page was already visited (prevent going back)
+    if (visitedPages.has(normalizedTitle)) {
+      console.log(
+        "Page already visited, blocking navigation:",
+        normalizedTitle
+      );
+      return;
+    }
+
     // Optimistically reflect the clicked title for UX
     try {
       setTitle(t);
     } catch {}
     // Fetch first to obtain the canonical article title, then emit navigate
     const { html, title } = await fetchWikiHtml(t);
+
+    // Add to visited pages
+    setVisitedPages((prev) => new Set([...prev, normalizedTitle]));
+
     try {
       socket.emit("player:navigate", { title });
     } catch {}
@@ -107,6 +127,15 @@ export default function WikiView({
           if (!isWiki) {
             const text = document.createTextNode(a.textContent || "");
             a.replaceWith(text);
+          } else {
+            // Check if this link points to a visited page
+            const linkTitle = extractTitleFromHref(href);
+            if (linkTitle && visitedPages.has(linkTitle)) {
+              a.style.color = "#999";
+              a.style.textDecoration = "line-through";
+              a.style.cursor = "not-allowed";
+              a.setAttribute("title", "Page déjà visitée");
+            }
           }
         } catch {
           // If URL parsing fails and it's not a hash link, remove link
@@ -116,6 +145,47 @@ export default function WikiView({
           }
         }
       });
+
+      // Generate table of contents from headings
+      const headings = Array.from(
+        wrapper.querySelectorAll("h1, h2, h3, h4, h5, h6")
+      );
+      const toc: Array<{ id: string; text: string; level: number }> = [];
+
+      headings.forEach((heading, index) => {
+        const level = parseInt(heading.tagName.substring(1));
+        const text = heading.textContent?.trim() || "";
+        let id = heading.getAttribute("id") || "";
+
+        // Generate ID if not present
+        if (!id) {
+          id = `heading-${index}`;
+          heading.setAttribute("id", id);
+        }
+
+        // Skip very generic headings or those we removed
+        const shouldSkip = (text: string) => {
+          const s = text.trim().toLowerCase();
+          return (
+            s.includes("liens externes") ||
+            s.includes("lien externe") ||
+            s.includes("external links") ||
+            s.includes("bibliographie") ||
+            s.includes("notes et références") ||
+            s === "notes" ||
+            s === "références" ||
+            s === "references" ||
+            s === "" ||
+            s.length < 2
+          );
+        };
+
+        if (!shouldSkip(text) && level >= 2 && level <= 4) {
+          toc.push({ id, text, level });
+        }
+      });
+
+      setTableOfContents(toc);
       setTitle(title);
       setHtml(wrapper.innerHTML);
       // After content update, scroll to top
@@ -125,6 +195,7 @@ export default function WikiView({
         if (c) c.scrollTo({ top: 0, left: 0, behavior: "auto" });
       });
     } catch {
+      setTableOfContents([]);
       setTitle(title);
       setHtml(html);
       requestAnimationFrame(() => {
@@ -137,6 +208,8 @@ export default function WikiView({
   }
 
   useEffect(() => {
+    // Reset visited pages when starting a new round
+    setVisitedPages(new Set());
     load(startTitle);
   }, [startTitle]);
 
@@ -168,6 +241,13 @@ export default function WikiView({
     return () => el.removeEventListener("click", onClick);
   }, [locked]);
 
+  const scrollToHeading = (id: string) => {
+    const element = document.getElementById(id);
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
   return (
     <div className="rounded border border-neutral-300 overflow-hidden bg-white">
       <header className="px-6 py-4 border-b border-neutral-300 bg-[#f8f9fa]">
@@ -175,6 +255,27 @@ export default function WikiView({
           {decodeURIComponent(title.replace(/_/g, " "))}
         </div>
       </header>
+
+      {/* Table of Contents */}
+      {tableOfContents.length > 0 && (
+        <div className="px-6 py-4 border-b border-neutral-200 bg-[#f8f9fa]">
+          <div className="text-lg font-semibold text-black mb-3">Sommaire</div>
+          <div className="space-y-1">
+            {tableOfContents.map((item, index) => (
+              <div
+                key={index}
+                className={`cursor-pointer text-blue-600 hover:text-blue-800 hover:underline text-sm ${
+                  item.level === 2 ? "pl-0" : item.level === 3 ? "pl-4" : "pl-8"
+                }`}
+                onClick={() => scrollToHeading(item.id)}
+              >
+                {index + 1}. {item.text}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div
         ref={containerRef}
         className="wiki-content max-w-none px-6 py-6 [&_img]:h-auto [&_img]:max-w-full [&_figure]:my-4 [&_table]:w-full [&_table]:border-collapse [&_th]:border [&_td]:border [&_th]:border-neutral-200 [&_td]:border-neutral-200 [&_th]:px-2 [&_td]:px-2 [&_th]:py-1 [&_td]:py-1"
