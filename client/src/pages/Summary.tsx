@@ -55,9 +55,6 @@ export default function Summary({
               {winner && (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-sm p-4 mb-6">
                   <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center flex-shrink-0">
-                      <span className="text-white text-sm font-bold">🏆</span>
-                    </div>
                     <div className="flex-1">
                       <div className="text-lg font-medium text-yellow-900 mb-1">
                         Vainqueur : {winner.name}
