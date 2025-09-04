@@ -181,7 +181,12 @@ export default function Game({
         <Countdown
           secs={3}
           onEnd={() => {
-            /* purely visual; server drives actual start */
+            // Host triggers the start to avoid serverless timer drift
+            if (me.id === room.hostId) {
+              try {
+                socket.emit("room:start");
+              } catch {}
+            }
           }}
         />
       )}

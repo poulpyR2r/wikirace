@@ -262,12 +262,7 @@ app.post("/api/room/ready", async (req, res) => {
         round: state.currentRound,
         rounds: state.rounds,
       });
-      setTimeout(async () => {
-        state.status = "playing";
-        state.startedAt = Date.now();
-        await broadcast(code, "round:start", { startTitle: state.startTitle! });
-        await broadcast(code, "room:state", toPublic(state));
-      }, 3000);
+      // Countdown is client-side; host will trigger /api/room/start
     }
   }
   res.json({ ok: true });
@@ -297,23 +292,14 @@ app.post("/api/player/navigate", async (req, res) => {
       state.status = "finished";
       await broadcast(code, "room:state", toPublic(state));
     } else {
-      setTimeout(async () => {
-        await startNextRound(state);
-        await broadcast(code, "room:state", toPublic(state));
-        await broadcast(code, "round:setup", {
-          targetTitle: state.targetTitle!,
-          round: state.currentRound,
-          rounds: state.rounds,
-        });
-        setTimeout(async () => {
-          state.status = "playing";
-          state.startedAt = Date.now();
-          await broadcast(code, "round:start", {
-            startTitle: state.startTitle!,
-          });
-          await broadcast(code, "room:state", toPublic(state));
-        }, 2000);
-      }, 2000);
+      await startNextRound(state);
+      await broadcast(code, "room:state", toPublic(state));
+      await broadcast(code, "round:setup", {
+        targetTitle: state.targetTitle!,
+        round: state.currentRound,
+        rounds: state.rounds,
+      });
+      // Host will trigger /api/room/start after countdown
     }
   }
   res.json({ ok: true });
@@ -339,12 +325,25 @@ app.post("/api/room/next", async (req, res) => {
     round: state.currentRound,
     rounds: state.rounds,
   });
-  setTimeout(async () => {
-    state.status = "playing";
-    state.startedAt = Date.now();
-    await broadcast(code, "round:start", { startTitle: state.startTitle! });
-    await broadcast(code, "room:state", toPublic(state));
-  }, 3000);
+  // Host will trigger /api/room/start after countdown
+  res.json({ ok: true });
+});
+
+// Explicit start endpoint to avoid relying on serverless timers
+app.post("/api/room/start", async (req, res) => {
+  const { code, clientId } = req.body as { code: string; clientId: string };
+  const state = rooms.get(code);
+  if (!state) return res.status(404).json({ error: "Room not found" });
+  // Only host is allowed to trigger the start
+  if (state.createdBy !== clientId)
+    return res.status(403).json({ error: "Only host can start" });
+  if (state.status !== "countdown")
+    return res.status(400).json({ error: "Not ready to start" });
+
+  state.status = "playing";
+  state.startedAt = Date.now();
+  await broadcast(code, "round:start", { startTitle: state.startTitle! });
+  await broadcast(code, "room:state", toPublic(state));
   res.json({ ok: true });
 });
 

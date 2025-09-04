@@ -31,6 +31,7 @@ export type RoomSocket = {
       | "room:create"
       | "room:join"
       | "room:ready"
+      | "room:start"
       | "room:next"
       | "player:navigate",
     payload?: any,
@@ -138,6 +139,11 @@ export function connectSocket(baseUrl: string): RoomSocket {
             if (res?.state) emitLocal("room:state", res.state);
             cb && cb(res);
           });
+          break;
+        }
+        case "room:start": {
+          if (!currentCode) return;
+          post(`/api/room/start`, { code: currentCode, clientId: id });
           break;
         }
         case "room:ready": {
