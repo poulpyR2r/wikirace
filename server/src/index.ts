@@ -16,6 +16,10 @@ import {
 } from "./room.js";
 import { getMobileHtml } from "./wiki.js";
 import type { RoomState, Player } from "./types.js";
+import {
+  loadRoom as loadRoomFromRedis,
+  saveRoom as saveRoomToRedis,
+} from "./store.js";
 
 const PORT = process.env.PORT || 4000;
 // Normalize configured client origin by removing a trailing slash
@@ -79,6 +83,30 @@ async function broadcast(code: string, event: string, payload: any) {
       code,
       message: (err as Error)?.message,
     });
+  }
+}
+
+async function getRoom(code: string): Promise<RoomState | null> {
+  const local = rooms.get(code);
+  if (local) return local;
+  try {
+    const fromRedis = await loadRoomFromRedis(code);
+    if (fromRedis) {
+      rooms.set(code, fromRedis);
+      return fromRedis;
+    }
+  } catch (e) {
+    console.error("Redis load failed", (e as Error)?.message);
+  }
+  return null;
+}
+
+async function persistRoom(state: RoomState) {
+  rooms.set(state.code, state);
+  try {
+    await saveRoomToRedis(state);
+  } catch (e) {
+    console.error("Redis save failed", (e as Error)?.message);
   }
 }
 
@@ -209,7 +237,7 @@ app.post("/api/room/create", async (req, res) => {
     clicks: 0,
   };
   state.players.set(clientId, player);
-  rooms.set(code, state);
+  await persistRoom(state);
   const publicState = toPublic(state);
   broadcast(code, "room:state", publicState);
   res.json({ code, state: publicState });
@@ -222,7 +250,7 @@ app.post("/api/room/join", async (req, res) => {
     name: string;
     clientId: string;
   };
-  const state = rooms.get(code);
+  let state = await getRoom(code);
   if (!state)
     return res.json({ ok: false, host: false, error: "Room not found" });
   if (!state.players.has(clientId)) {
@@ -235,6 +263,7 @@ app.post("/api/room/join", async (req, res) => {
     };
     state.players.set(clientId, player);
   }
+  await persistRoom(state);
   broadcast(code, "room:state", toPublic(state));
   res.json({
     ok: true,
@@ -246,16 +275,18 @@ app.post("/api/room/join", async (req, res) => {
 // Player ready
 app.post("/api/room/ready", async (req, res) => {
   const { code, clientId } = req.body as { code: string; clientId: string };
-  const state = rooms.get(code);
+  const state = await getRoom(code);
   if (!state) return res.status(404).json({ error: "Room not found" });
   const player = state.players.get(clientId);
   if (!player) return res.status(404).json({ error: "Player not found" });
   player.ready = true;
+  await persistRoom(state);
   await broadcast(code, "room:state", toPublic(state));
 
   if (state.status === "lobby" || state.status === "round_over") {
     if (allReady(state)) {
       await startNextRound(state);
+      await persistRoom(state);
       await broadcast(code, "room:state", toPublic(state));
       await broadcast(code, "round:setup", {
         targetTitle: state.targetTitle!,
@@ -275,9 +306,11 @@ app.post("/api/player/navigate", async (req, res) => {
     clientId: string;
     title: string;
   };
-  const state = rooms.get(code);
+  const state = await getRoom(code);
   if (!state) return res.status(404).json({ error: "Room not found" });
   const { winner } = handleNavigate(state, clientId, title);
+  // persist clicks/paths even if no winner
+  await persistRoom(state);
   if (winner) {
     const updatedScores = awardScores(state);
     await broadcast(code, "round:over", {
@@ -290,9 +323,11 @@ app.post("/api/player/navigate", async (req, res) => {
     await broadcast(code, "room:state", toPublic(state));
     if (state.currentRound >= state.rounds) {
       state.status = "finished";
+      await persistRoom(state);
       await broadcast(code, "room:state", toPublic(state));
     } else {
       await startNextRound(state);
+      await persistRoom(state);
       await broadcast(code, "room:state", toPublic(state));
       await broadcast(code, "round:setup", {
         targetTitle: state.targetTitle!,
@@ -308,17 +343,19 @@ app.post("/api/player/navigate", async (req, res) => {
 // Host-advance to next round
 app.post("/api/room/next", async (req, res) => {
   const { code, clientId } = req.body as { code: string; clientId: string };
-  const state = rooms.get(code);
+  const state = await getRoom(code);
   if (!state) return res.status(404).json({ error: "Room not found" });
   if (state.createdBy !== clientId)
     return res.status(403).json({ error: "Only host can advance" });
   if (state.status === "finished") return res.json({ ok: true });
   if (state.currentRound >= state.rounds) {
     state.status = "finished";
+    await persistRoom(state);
     await broadcast(code, "room:state", toPublic(state));
     return res.json({ ok: true });
   }
   await startNextRound(state);
+  await persistRoom(state);
   await broadcast(code, "room:state", toPublic(state));
   await broadcast(code, "round:setup", {
     targetTitle: state.targetTitle!,
@@ -332,7 +369,7 @@ app.post("/api/room/next", async (req, res) => {
 // Explicit start endpoint to avoid relying on serverless timers
 app.post("/api/room/start", async (req, res) => {
   const { code, clientId } = req.body as { code: string; clientId: string };
-  const state = rooms.get(code);
+  const state = await getRoom(code);
   if (!state) return res.status(404).json({ error: "Room not found" });
   // Only host is allowed to trigger the start
   if (state.createdBy !== clientId)
@@ -342,6 +379,7 @@ app.post("/api/room/start", async (req, res) => {
 
   state.status = "playing";
   state.startedAt = Date.now();
+  await persistRoom(state);
   await broadcast(code, "round:start", { startTitle: state.startTitle! });
   await broadcast(code, "room:state", toPublic(state));
   res.json({ ok: true });
