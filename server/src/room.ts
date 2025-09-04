@@ -103,6 +103,10 @@ export function handleNavigate(
   if (t === target && !state.winnerId) {
     state.winnerId = playerId;
     state.status = "round_over";
+    // Reset all players to not ready for next round
+    state.players.forEach((player) => {
+      player.ready = false;
+    });
     return { winner: p };
   }
   return {};
