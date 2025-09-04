@@ -44,9 +44,15 @@ export default function WikiView({
   const containerRef = useRef<HTMLDivElement>(null);
 
   async function load(t: string) {
-    // Emit instant so le jeu réagit de suite, puis fetch le contenu
-    socket.emit("player:navigate", { title: t });
+    // Optimistically reflect the clicked title for UX
+    try {
+      setTitle(t);
+    } catch {}
+    // Fetch first to obtain the canonical article title, then emit navigate
     const { html, title } = await fetchWikiHtml(t);
+    try {
+      socket.emit("player:navigate", { title });
+    } catch {}
     // Remove only specific sections: External links, Bibliography, Notes/References
     try {
       const wrapper = document.createElement("div");
