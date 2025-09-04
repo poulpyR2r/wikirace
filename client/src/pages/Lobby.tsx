@@ -120,21 +120,10 @@ export default function Lobby({
               )}
 
               {room.status === "round_over" && (
-                <div className="space-y-4">
-                  <Button
-                    variant="primary"
-                    fullWidth
-                    onClick={() => socket.emit("room:ready")}
-                    className="bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
-                  >
-                    {readyLabel}
-                  </Button>
-
-                  <div className="bg-orange-50 border-l-4 border-orange-400 p-4">
-                    <div className="text-sm text-orange-800">
-                      <strong>Manche terminée :</strong> Cliquez sur "Prêt" pour
-                      passer à la manche suivante.
-                    </div>
+                <div className="bg-orange-50 border-l-4 border-orange-400 p-4">
+                  <div className="text-sm text-orange-800">
+                    <strong>Manche terminée !</strong> Préparation de la
+                    prochaine manche en cours...
                   </div>
                 </div>
               )}

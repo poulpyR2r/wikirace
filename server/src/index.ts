@@ -283,7 +283,8 @@ app.post("/api/room/ready", async (req, res) => {
   await persistRoom(state);
   await broadcast(code, "room:state", toPublic(state));
 
-  if (state.status === "lobby" || state.status === "round_over") {
+  // Only auto-start from lobby (initial game start), not from round_over
+  if (state.status === "lobby") {
     if (allReady(state)) {
       await startNextRound(state);
       await persistRoom(state);
@@ -326,11 +327,25 @@ app.post("/api/player/navigate", async (req, res) => {
       await persistRoom(state);
       await broadcast(code, "room:state", toPublic(state));
     } else {
-      // Just set status to round_over, don't start next round yet
-      // Next round will start when all players are ready
+      // Auto-start next round after 3 seconds
       state.status = "round_over";
       await persistRoom(state);
       await broadcast(code, "room:state", toPublic(state));
+
+      // Start next round automatically after delay
+      setTimeout(async () => {
+        const currentState = await getRoom(code);
+        if (currentState && currentState.status === "round_over") {
+          await startNextRound(currentState);
+          await persistRoom(currentState);
+          await broadcast(code, "room:state", toPublic(currentState));
+          await broadcast(code, "round:setup", {
+            targetTitle: currentState.targetTitle!,
+            round: currentState.currentRound,
+            rounds: currentState.rounds,
+          });
+        }
+      }, 3000);
     }
   }
   res.json({ ok: true });
