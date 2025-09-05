@@ -122,8 +122,8 @@ export default function Lobby({
               {room.status === "round_over" && (
                 <div className="bg-orange-50 border-l-4 border-orange-400 p-4">
                   <div className="text-sm text-orange-800">
-                    <strong>Manche terminée !</strong> Préparation de la
-                    prochaine manche en cours...
+                    <strong>Manche terminée !</strong> Prochaine manche dans
+                    quelques instants...
                   </div>
                 </div>
               )}

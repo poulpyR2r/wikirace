@@ -87,14 +87,14 @@ export default function Game({
         localStorage.setItem("wikirace:lastScores", JSON.stringify(payload));
       } catch {}
 
-      // Auto-advance to next round after 3 seconds (only for host to avoid duplicate calls)
+      // Auto-advance to next round after 1.5 seconds (only for host to avoid duplicate calls)
       if (me.id === room.hostId) {
         if (autoNextTimeoutRef.current) {
           clearTimeout(autoNextTimeoutRef.current);
         }
         autoNextTimeoutRef.current = window.setTimeout(() => {
           socket.emit("room:next-auto");
-        }, 3000);
+        }, 1500);
       }
     };
     socket.on("round:setup", onSetup);
@@ -152,11 +152,11 @@ export default function Game({
       );
       setWinnerPath([]);
 
-      // Auto-advance to next round after 3 seconds (fallback if round:over event wasn't received)
+      // Auto-advance to next round after 1.5 seconds (fallback if round:over event wasn't received)
       if (me.id === room.hostId && !autoNextTimeoutRef.current) {
         autoNextTimeoutRef.current = window.setTimeout(() => {
           socket.emit("room:next-auto");
-        }, 3000);
+        }, 1500);
       }
     }
     // Game finished → show final scoreboard overlay
