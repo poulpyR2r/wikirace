@@ -48,66 +48,124 @@ export async function getRandomTitle(): Promise<string> {
   return normalizeTitle(title);
 }
 
-// Pool of popular target pages for WikiRace
-const POPULAR_TARGETS = [
-  "France",
-  "Paris",
-  "États-Unis",
-  "Allemagne",
-  "Italie",
-  "Espagne",
-  "Napoleon_Ier",
-  "Louis_XIV",
-  "Charles_de_Gaulle",
-  "Marie_Curie",
-  "Albert_Einstein",
-  "Léonard_de_Vinci",
-  "Mozart",
-  "Bach",
-  "Première_Guerre_mondiale",
-  "Seconde_Guerre_mondiale",
-  "Révolution_française",
-  "Renaissance",
-  "Moyen_Âge",
-  "Antiquité",
-  "Soleil",
-  "Lune",
-  "Terre",
-  "Mars",
-  "Jupiter",
-  "Chat",
-  "Chien",
-  "Lion",
-  "Éléphant",
-  "Aigle",
-  "Football",
-  "Tennis",
-  "Basketball",
-  "Jeux_olympiques",
-  "Cinéma",
-  "Musique",
-  "Littérature",
-  "Peinture",
-  "Sculpture",
-  "Christianisme",
-  "Islam",
-  "Bouddhisme",
-  "Judaïsme",
-  "Europe",
-  "Asie",
-  "Afrique",
-  "Amérique",
-  "Océanie",
-  "Mathématiques",
-  "Physique",
-  "Chimie",
-  "Biologie",
-  "Médecine",
-];
+// Check if a Wikipedia page exists
+async function pageExists(title: string): Promise<boolean> {
+  try {
+    const params = new URLSearchParams({
+      action: "query",
+      titles: title,
+      format: "json",
+      origin: "*",
+    });
+    const { data } = await fetchWithRetry(`${WIKI_API}?${params.toString()}`);
+    const pages = data?.query?.pages;
+    if (!pages) return false;
 
-export function getRandomTarget(): string {
-  const randomIndex = Math.floor(Math.random() * POPULAR_TARGETS.length);
-  return normalizeTitle(POPULAR_TARGETS[randomIndex]);
+    // If page exists, it won't have a "missing" property
+    const pageId = Object.keys(pages)[0];
+    return !pages[pageId].missing;
+  } catch {
+    return false;
+  }
+}
+
+// Get a random target page that exists and has decent content
+export async function getRandomTarget(): Promise<string> {
+  let attempts = 0;
+  const maxAttempts = 10;
+
+  while (attempts < maxAttempts) {
+    try {
+      // Get a random page
+      const randomTitle = await getRandomTitle();
+
+      // Check basic criteria for a good target
+      if (isGoodTarget(randomTitle)) {
+        // Verify the page exists and get some info about it
+        const pageInfo = await getPageInfo(randomTitle);
+        if (pageInfo.exists && pageInfo.hasContent) {
+          return randomTitle;
+        }
+      }
+
+      attempts++;
+    } catch {
+      attempts++;
+    }
+  }
+
+  // Fallback to a safe default if we can't find a good random target
+  return normalizeTitle("France");
+}
+
+// Check if a title makes a good target (not too obscure, not a disambiguation page, etc.)
+function isGoodTarget(title: string): boolean {
+  const normalized = title.toLowerCase();
+
+  // Avoid disambiguation pages, lists, categories, etc.
+  if (
+    normalized.includes("(homonymie)") ||
+    normalized.includes("(disambiguation)") ||
+    normalized.includes("liste de") ||
+    normalized.includes("list of") ||
+    normalized.includes("catégorie:") ||
+    normalized.includes("category:") ||
+    normalized.includes("portail:") ||
+    normalized.includes("portal:") ||
+    normalized.includes("wikipédia:") ||
+    normalized.includes("wikipedia:")
+  ) {
+    return false;
+  }
+
+  // Avoid very short titles (likely not substantial articles)
+  if (title.length < 3) {
+    return false;
+  }
+
+  // Avoid titles with numbers/years only
+  if (/^\d+$/.test(title)) {
+    return false;
+  }
+
+  return true;
+}
+
+// Get information about a page to determine if it's suitable as a target
+async function getPageInfo(
+  title: string
+): Promise<{ exists: boolean; hasContent: boolean }> {
+  try {
+    const params = new URLSearchParams({
+      action: "query",
+      titles: title,
+      prop: "extracts|pageprops",
+      exintro: "1",
+      explaintext: "1",
+      exsectionformat: "plain",
+      format: "json",
+      origin: "*",
+    });
+
+    const { data } = await fetchWithRetry(`${WIKI_API}?${params.toString()}`);
+    const pages = data?.query?.pages;
+
+    if (!pages) return { exists: false, hasContent: false };
+
+    const pageId = Object.keys(pages)[0];
+    const page = pages[pageId];
+
+    // Check if page exists
+    if (page.missing) return { exists: false, hasContent: false };
+
+    // Check if page has substantial content (at least 100 characters in intro)
+    const extract = page.extract || "";
+    const hasContent = extract.length >= 100;
+
+    return { exists: true, hasContent };
+  } catch {
+    return { exists: false, hasContent: false };
+  }
 }
 
 export async function getMobileHtml(

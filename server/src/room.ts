@@ -71,7 +71,7 @@ export async function startNextRound(state: RoomState) {
   if (!state.history) state.history = new Map();
   state.history.set(state.currentRound, state.paths);
 
-  let target = getRandomTarget();
+  let target = await getRandomTarget();
   let start = await getRandomTitle();
   let guard = 0;
   while (normalizeTitle(start) === normalizeTitle(target) && guard++ < 10) {
