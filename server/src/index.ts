@@ -327,27 +327,35 @@ app.post("/api/player/navigate", async (req, res) => {
       await persistRoom(state);
       await broadcast(code, "room:state", toPublic(state));
     } else {
-      // Auto-start next round after 3 seconds
+      // Set status to round_over, client will handle auto-progression
       state.status = "round_over";
       await persistRoom(state);
       await broadcast(code, "room:state", toPublic(state));
-
-      // Start next round automatically after delay
-      setTimeout(async () => {
-        const currentState = await getRoom(code);
-        if (currentState && currentState.status === "round_over") {
-          await startNextRound(currentState);
-          await persistRoom(currentState);
-          await broadcast(code, "room:state", toPublic(currentState));
-          await broadcast(code, "round:setup", {
-            targetTitle: currentState.targetTitle!,
-            round: currentState.currentRound,
-            rounds: currentState.rounds,
-          });
-        }
-      }, 3000);
     }
   }
+  res.json({ ok: true });
+});
+
+// Auto-advance to next round (called by client after delay)
+app.post("/api/room/next-auto", async (req, res) => {
+  const { code } = req.body as { code: string };
+  const state = await getRoom(code);
+  if (!state) return res.status(404).json({ error: "Room not found" });
+  if (state.status !== "round_over") return res.json({ ok: true }); // Already advanced
+  if (state.currentRound >= state.rounds) {
+    state.status = "finished";
+    await persistRoom(state);
+    await broadcast(code, "room:state", toPublic(state));
+    return res.json({ ok: true });
+  }
+  await startNextRound(state);
+  await persistRoom(state);
+  await broadcast(code, "room:state", toPublic(state));
+  await broadcast(code, "round:setup", {
+    targetTitle: state.targetTitle!,
+    round: state.currentRound,
+    rounds: state.rounds,
+  });
   res.json({ ok: true });
 });
 

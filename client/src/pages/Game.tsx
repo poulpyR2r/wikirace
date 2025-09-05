@@ -15,6 +15,7 @@ export default function Game({
 }) {
   // Remove auto-ready; we'll rely on host "next" or lobby auto-start.
   const autoReadyTimeoutRef = useRef<number | null>(null);
+  const autoNextTimeoutRef = useRef<number | null>(null);
   const [target, setTarget] = useState<string | null>(room.targetTitle || null);
   const [startTitle, setStartTitle] = useState<string | null>(
     room.startTitle || null
@@ -85,7 +86,16 @@ export default function Game({
         const payload = { code: room.code, scores: updatedScores };
         localStorage.setItem("wikirace:lastScores", JSON.stringify(payload));
       } catch {}
-      // No auto-ready here; overlay remains until host advances or lobby flow resumes
+
+      // Auto-advance to next round after 3 seconds (only for host to avoid duplicate calls)
+      if (me.id === room.hostId) {
+        if (autoNextTimeoutRef.current) {
+          clearTimeout(autoNextTimeoutRef.current);
+        }
+        autoNextTimeoutRef.current = window.setTimeout(() => {
+          socket.emit("room:next-auto");
+        }, 3000);
+      }
     };
     socket.on("round:setup", onSetup);
     socket.on("round:start", onStart);
@@ -99,10 +109,14 @@ export default function Game({
 
   // Fallback to show countdown based on room status in case events were missed
   useEffect(() => {
-    // Clear any pending auto-ready if status changed
+    // Clear any pending auto-ready and auto-next if status changed
     if (autoReadyTimeoutRef.current) {
       clearTimeout(autoReadyTimeoutRef.current);
       autoReadyTimeoutRef.current = null;
+    }
+    if (autoNextTimeoutRef.current) {
+      clearTimeout(autoNextTimeoutRef.current);
+      autoNextTimeoutRef.current = null;
     }
     console.log("room.status", room.status);
     if (room.status === "countdown") {
@@ -137,7 +151,13 @@ export default function Game({
         room.players.map((p) => ({ id: p.id, name: p.name, score: p.score }))
       );
       setWinnerPath([]);
-      // Do not auto-ready; wait for host or lobby flow
+
+      // Auto-advance to next round after 3 seconds (fallback if round:over event wasn't received)
+      if (me.id === room.hostId && !autoNextTimeoutRef.current) {
+        autoNextTimeoutRef.current = window.setTimeout(() => {
+          socket.emit("room:next-auto");
+        }, 3000);
+      }
     }
     // Game finished → show final scoreboard overlay
     if (room.status === "finished") {

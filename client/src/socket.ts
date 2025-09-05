@@ -33,6 +33,7 @@ export type RoomSocket = {
       | "room:ready"
       | "room:start"
       | "room:next"
+      | "room:next-auto"
       | "player:navigate",
     payload?: any,
     cb?: (res: any) => void
@@ -154,6 +155,11 @@ export function connectSocket(baseUrl: string): RoomSocket {
         case "room:next": {
           if (!currentCode) return;
           post(`/api/room/next`, { code: currentCode, clientId: id });
+          break;
+        }
+        case "room:next-auto": {
+          if (!currentCode) return;
+          post(`/api/room/next-auto`, { code: currentCode });
           break;
         }
         case "player:navigate": {
